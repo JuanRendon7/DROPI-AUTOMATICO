@@ -1,0 +1,35 @@
+{
+  "project": {
+    "name": "Dropi Autonomous Sales Machine",
+    "slug": "dropi-sales-machine",
+    "version": "0.1.0",
+    "language": "es"
+  },
+  "workflow": {
+    "require_plan_approval": false,
+    "require_phase_approval": false,
+    "auto_commit": true,
+    "parallel_execution": true,
+    "use_subagents": true
+  },
+  "stack": {
+    "primary_language": "python",
+    "framework": "fastapi",
+    "agent_framework": "langgraph",
+    "llm": "claude-sonnet-4-6",
+    "database": "postgresql",
+    "cache": "redis",
+    "automation": "playwright"
+  },
+  "phases": {
+    "current": 1,
+    "total": 7
+  },
+  "budget": {
+    "monthly_usd": 200,
+    "currency": "USD"
+  },
+  "autonomy_level": "full",
+  "ad_platforms": ["meta", "tiktok", "google"],
+  "dropi_access": "playwright_scraping"
+}

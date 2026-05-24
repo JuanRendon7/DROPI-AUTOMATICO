@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run ruff
+        run: ruff check .
+
+      - name: Run mypy
+        run: mypy app/
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          REDIS_URL: redis://localhost:6379/0
+          ANTHROPIC_API_KEY: sk-ant-test
+          META_ACCESS_TOKEN: test-token
+          META_AD_ACCOUNT_ID: act_123
+          TIKTOK_ACCESS_TOKEN: test-token
+          TIKTOK_ADVERTISER_ID: "123456"
+          GOOGLE_ADS_DEVELOPER_TOKEN: test-token
+          DROPI_EMAIL: test@test.com
+          DROPI_PASSWORD: testpass
+          ENVIRONMENT: test
+        run: pytest tests/ --cov=app --cov-report=xml -v
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+        continue-on-error: true

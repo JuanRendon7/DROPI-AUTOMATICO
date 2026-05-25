@@ -22,18 +22,18 @@ class Settings(BaseSettings):
     claude_model: str = "claude-sonnet-4-6"
 
     # ── Meta (Facebook / Instagram Ads) ───────────────────────────
-    meta_access_token: str
-    meta_ad_account_id: str
+    meta_access_token: str = ""
+    meta_ad_account_id: str = ""
     meta_app_id: str = ""
     meta_app_secret: str = ""
 
     # ── TikTok Ads ─────────────────────────────────────────────────
-    tiktok_access_token: str
-    tiktok_advertiser_id: str
+    tiktok_access_token: str = ""
+    tiktok_advertiser_id: str = ""
     tiktok_app_id: str = ""
 
     # ── Google Ads ─────────────────────────────────────────────────
-    google_ads_developer_token: str
+    google_ads_developer_token: str = ""
     google_ads_client_id: str = ""
     google_ads_client_secret: str = ""
     google_ads_refresh_token: str = ""

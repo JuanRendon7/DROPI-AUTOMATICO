@@ -23,7 +23,7 @@
       --red:       #ff3d5a;
       --text:      #dde6f0;
       --text2:     #8fa0b8;
-      --text3:     #3d5270;
+      --text3:     #607a96;
       --font:      'Space Grotesk', system-ui, sans-serif;
       --mono:      'JetBrains Mono', monospace;
     }
@@ -77,6 +77,16 @@
     @keyframes ldot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
 
     #clk { font-family: var(--mono); font-size: 13px; color: var(--text2); letter-spacing: 1.5px; }
+
+    .logout-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 20px; cursor: pointer;
+      border: 1px solid rgba(255,61,90,.25); background: rgba(255,61,90,.07);
+      color: #ff7a8a; font-family: var(--mono); font-size: 10px;
+      font-weight: 500; letter-spacing: .8px; text-decoration: none;
+      transition: background .2s, border-color .2s;
+    }
+    .logout-btn:hover { background: rgba(255,61,90,.15); border-color: rgba(255,61,90,.5); }
 
     /* ── Main ───────────────────────────────────────────── */
     main { max-width: 1440px; width: 100%; margin: 0 auto; padding: 30px 36px; flex: 1; display: flex; flex-direction: column; gap: 26px; }
@@ -259,6 +269,7 @@
     <div class="hd-right">
       <div class="live-pill"><div class="live-dot"></div> LIVE</div>
       <div id="clk">--:--:--</div>
+      <a href="/logout" class="logout-btn">&#x2192; SALIR</a>
     </div>
   </header>
 

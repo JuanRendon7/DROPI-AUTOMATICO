@@ -192,7 +192,18 @@ async def _get_chart_data(db: AsyncSession, days: int = 7) -> dict:
     }
 
 
-# ── Endpoint ──────────────────────────────────────────────────────────────────────
+# ── Endpoints ─────────────────────────────────────────────────────────────────────
+
+@router.get("/logout")
+async def logout():
+    """Cierra sesión HTTP Basic forzando un 401 que borra las credenciales del navegador."""
+    raise HTTPException(
+        status_code=401,
+        detail="Sesión cerrada",
+        headers={"WWW-Authenticate": "Basic"},
+    )
+
+
 
 @router.get("/dashboard")
 async def dashboard(

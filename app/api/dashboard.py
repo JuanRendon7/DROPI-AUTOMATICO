@@ -204,6 +204,85 @@ async def logout():
     )
 
 
+@router.get("/dashboard/api/agent/{agent_name}")
+async def agent_detail_api(
+    agent_name: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[str, Depends(_check_auth)],
+):
+    """Últimas 20 ejecuciones de un agente específico."""
+    result = await db.execute(
+        select(AgentLog)
+        .where(AgentLog.agent == agent_name)
+        .order_by(AgentLog.created_at.desc())
+        .limit(20)
+    )
+    return [
+        {
+            "status": e.status,
+            "created_at": e.created_at.strftime("%Y-%m-%d %H:%M UTC"),
+            "errors": (e.meta or {}).get("errors", []),
+            "meta": {k: v for k, v in (e.meta or {}).items() if k != "errors"},
+        }
+        for e in result.scalars().all()
+    ]
+
+
+@router.get("/dashboard/api/metrics")
+async def metrics_detail_api(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[str, Depends(_check_auth)],
+):
+    """Desglose diario de gasto, ingresos y ROAS (últimos 14 días)."""
+    cutoff = datetime.now(timezone.utc).date() - timedelta(days=14)
+    result = await db.execute(
+        select(
+            Metric.date,
+            func.coalesce(func.sum(Metric.spend_usd), 0).label("spend"),
+            func.coalesce(func.sum(Metric.revenue_usd), 0).label("revenue"),
+            func.coalesce(func.avg(Metric.roas), 0).label("roas"),
+        )
+        .where(Metric.date >= cutoff)
+        .group_by(Metric.date)
+        .order_by(Metric.date.desc())
+    )
+    return [
+        {
+            "date": str(r.date),
+            "spend": round(float(r.spend), 2),
+            "revenue": round(float(r.revenue), 2),
+            "roas": round(float(r.roas), 2),
+        }
+        for r in result.all()
+    ]
+
+
+@router.get("/dashboard/api/campaigns")
+async def campaigns_api(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[str, Depends(_check_auth)],
+):
+    """Campañas activas con producto asociado y presupuesto."""
+    from app.models import Product as ProductModel
+    result = await db.execute(
+        select(Campaign, ProductModel.name.label("product_name"))
+        .join(ProductModel, Campaign.product_id == ProductModel.id)
+        .where(Campaign.status == "active")
+        .order_by(Campaign.created_at.desc())
+        .limit(30)
+    )
+    return [
+        {
+            "platform": r.Campaign.platform,
+            "product": (r.product_name or "")[:45],
+            "budget_usd": float(r.Campaign.budget_usd) if r.Campaign.budget_usd else 0,
+            "external_id": r.Campaign.external_id or "—",
+            "created_at": r.Campaign.created_at.strftime("%Y-%m-%d %H:%M"),
+        }
+        for r in result.all()
+    ]
+
+
 
 @router.get("/dashboard")
 async def dashboard(

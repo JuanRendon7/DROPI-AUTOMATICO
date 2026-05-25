@@ -228,6 +228,58 @@
     /* ── Footer ─────────────────────────────────────────── */
     footer { text-align:center; padding:18px 36px; font-family:var(--mono); font-size:9.5px; color:var(--text3); border-top:1px solid var(--border); letter-spacing:.8px; }
 
+    /* ── Modal ──────────────────────────────────────────── */
+    #modal-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(3,9,15,.82); backdrop-filter: blur(10px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px; animation: mfade .18s ease;
+    }
+    @keyframes mfade { from{opacity:0} to{opacity:1} }
+
+    #modal-card {
+      width: 100%; max-width: 660px; max-height: 80vh;
+      overflow-y: auto; padding: 26px;
+      border-color: rgba(0,200,255,.3);
+      box-shadow: 0 0 70px rgba(0,200,255,.09);
+      animation: mslide .2s ease;
+    }
+    @keyframes mslide { from{opacity:0;transform:translateY(14px) scale(.97)} to{opacity:1;transform:none} }
+
+    #modal-head {
+      display:flex; align-items:center; justify-content:space-between;
+      margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid var(--border);
+    }
+    #modal-title {
+      font-size:13px; font-weight:600;
+      background:linear-gradient(90deg,var(--cyan),var(--violet));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    }
+    #modal-close {
+      background:none; border:none; color:var(--text3); cursor:pointer;
+      font-size:16px; line-height:1; padding:4px 8px; border-radius:6px;
+      transition:color .18s, background .18s;
+    }
+    #modal-close:hover { color:var(--text); background:rgba(255,255,255,.06); }
+
+    .mtable { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11px; }
+    .mtable thead th {
+      text-align:left; color:var(--text3); padding-bottom:9px;
+      border-bottom:1px solid var(--border);
+      font-size:9px; font-weight:600; letter-spacing:1.8px; text-transform:uppercase;
+    }
+    .mtable tbody tr { border-bottom:1px solid rgba(0,200,255,.04); transition:background .12s; }
+    .mtable tbody tr:hover { background:rgba(0,200,255,.04); }
+    .mtable tbody td { padding:8px 0; color:var(--text2); padding-right:12px; }
+    .mtable tbody td:last-child { padding-right:0; }
+
+    .mspinner { display:flex; align-items:center; justify-content:center; gap:10px; padding:44px; color:var(--text3); font-family:var(--mono); font-size:11px; }
+    .spin { width:18px; height:18px; border-radius:50%; border:2px solid rgba(0,200,255,.18); border-top-color:var(--cyan); animation:spin .7s linear infinite; flex-shrink:0; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+
+    .clickable { cursor:pointer; }
+    .clickable:active { transform:translateY(0) scale(.99) !important; }
+
     /* ── Scrollbar ──────────────────────────────────────── */
     ::-webkit-scrollbar { width:5px; height:5px; }
     ::-webkit-scrollbar-track { background:transparent; }
@@ -438,6 +490,17 @@
 
 </div><!-- #app -->
 
+<!-- Modal -->
+<div id="modal-overlay" style="display:none">
+  <div id="modal-card" class="card">
+    <div id="modal-head">
+      <span id="modal-title"></span>
+      <button id="modal-close" title="Cerrar (Esc)">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
 <script>
 /* ── Live clock ─────────────────────────────────── */
 (function(){
@@ -493,6 +556,110 @@
   window.addEventListener('resize',function(){ resize(); N=[]; for(var i=0;i<CNT;i++)N.push(mk()); });
   for(var i=0;i<CNT;i++) N.push(mk());
   frame();
+})();
+
+/* ── Modal system ───────────────────────────────── */
+(function(){
+  var overlay = document.getElementById('modal-overlay');
+  var titleEl = document.getElementById('modal-title');
+  var bodyEl  = document.getElementById('modal-body');
+
+  function open(title, html) {
+    titleEl.textContent = title;
+    bodyEl.innerHTML = html;
+    overlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+  function close() {
+    overlay.style.display = 'none';
+    document.body.style.overflow = '';
+    bodyEl.innerHTML = '';
+  }
+  document.getElementById('modal-close').addEventListener('click', close);
+  overlay.addEventListener('click', function(e){ if(e.target===overlay) close(); });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') close(); });
+
+  function loading() {
+    return '<div class="mspinner"><div class="spin"></div><span>Cargando datos...</span></div>';
+  }
+  function apiBadge(status) {
+    return '<span class="sbadge '+status+'">'+status+'</span>';
+  }
+  function fetchJSON(url, cb) {
+    fetch(url, {credentials:'same-origin'})
+      .then(function(r){ return r.json(); })
+      .then(cb)
+      .catch(function(){ bodyEl.innerHTML='<div class="empty"><p>Error al cargar datos</p></div>'; });
+  }
+  function emptyHTML(msg, hint) {
+    return '<div class="empty"><div class="eico">📭</div><p>'+msg+'</p><span>'+hint+'</span></div>';
+  }
+
+  /* — Agent cards — */
+  var aicons = {research:'🔍',dropi:'🛒',campaign:'📣',analytics:'📊',orchestrator:'🤖'};
+  document.querySelectorAll('.ac').forEach(function(card){
+    card.classList.add('clickable');
+    var nameEl = card.querySelector('.aname');
+    if(!nameEl) return;
+    var agent = nameEl.textContent.trim().toLowerCase();
+    card.addEventListener('click', function(){
+      open((aicons[agent]||'⚙️')+' '+nameEl.textContent.trim()+' — Últimas ejecuciones', loading());
+      fetchJSON('/dashboard/api/agent/'+agent, function(data){
+        if(!data.length){ bodyEl.innerHTML=emptyHTML('Sin ejecuciones registradas','El agente aún no ha corrido'); return; }
+        var h='<table class="mtable"><thead><tr><th>Timestamp</th><th>Estado</th><th>Errores</th><th>Detalle</th></tr></thead><tbody>';
+        data.forEach(function(r){
+          var ec=(r.errors||[]).length;
+          var detail = r.errors && r.errors.length ? r.errors[0].toString().substring(0,60)+'…' : '—';
+          h+='<tr><td>'+r.created_at+'</td><td>'+apiBadge(r.status)+'</td>'
+            +'<td><span class="ec '+(ec>0?'err':'ok')+'">'+ec+'</span></td>'
+            +'<td style="color:var(--text3);font-size:10px">'+detail+'</td></tr>';
+        });
+        bodyEl.innerHTML=h+'</tbody></table>';
+      });
+    });
+  });
+
+  /* — Metric cards — */
+  var metaTitles = {
+    spend:   '💸 Gasto — Desglose diario 14 días',
+    revenue: '📈 Ingresos — Desglose diario 14 días',
+    roas:    '⚡ ROAS — Desglose diario 14 días',
+    camps:   '🎯 Campañas activas',
+  };
+  document.querySelectorAll('.mc').forEach(function(card){
+    card.classList.add('clickable');
+    var cls = ['spend','revenue','roas','camps'].filter(function(c){ return card.classList.contains(c); })[0];
+    if(!cls) return;
+    card.addEventListener('click', function(){
+      open(metaTitles[cls], loading());
+      if(cls==='camps'){
+        fetchJSON('/dashboard/api/campaigns', function(data){
+          if(!data.length){ bodyEl.innerHTML=emptyHTML('No hay campañas activas','El agente Campaign las creará automáticamente'); return; }
+          var h='<table class="mtable"><thead><tr><th>Plataforma</th><th>Producto</th><th>Presupuesto</th><th>Ext. ID</th><th>Creada</th></tr></thead><tbody>';
+          data.forEach(function(r){
+            h+='<tr><td style="color:var(--cyan)">'+r.platform+'</td><td>'+r.product+'</td>'
+              +'<td style="color:var(--green)">$'+r.budget_usd.toFixed(2)+'</td>'
+              +'<td style="color:var(--text3)">'+r.external_id+'</td>'
+              +'<td style="color:var(--text3)">'+r.created_at+'</td></tr>';
+          });
+          bodyEl.innerHTML=h+'</tbody></table>';
+        });
+      } else {
+        fetchJSON('/dashboard/api/metrics', function(data){
+          if(!data.length){ bodyEl.innerHTML=emptyHTML('Sin datos de métricas aún','Aparecerán cuando las campañas estén activas'); return; }
+          var h='<table class="mtable"><thead><tr><th>Fecha</th><th>Gasto</th><th>Ingresos</th><th>ROAS</th></tr></thead><tbody>';
+          data.forEach(function(r){
+            var rc=r.roas>=3?'hi':r.roas>=1.5?'mi':r.roas>0?'lo':'na';
+            h+='<tr><td>'+r.date+'</td>'
+              +'<td><span class="roas lo">$'+r.spend.toFixed(2)+'</span></td>'
+              +'<td><span class="roas hi">$'+r.revenue.toFixed(2)+'</span></td>'
+              +'<td><span class="roas '+rc+'">'+(r.roas>0?r.roas.toFixed(2)+'x':'—')+'</span></td></tr>';
+          });
+          bodyEl.innerHTML=h+'</tbody></table>';
+        });
+      }
+    });
+  });
 })();
 
 /* ── Chart.js ───────────────────────────────────── */

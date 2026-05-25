@@ -48,6 +48,9 @@ dev = [
     "pytest-mock>=3.14",
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["app", "agents"]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100

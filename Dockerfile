@@ -13,7 +13,7 @@ WORKDIR /app
 # Instalar dependencias Python (capa cacheada — solo se reconstruye si pyproject.toml cambia)
 COPY pyproject.toml .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -e ".[agents]"
+    pip install --no-cache-dir ".[agents]"
 
 # Instalar dependencias del sistema para Playwright + browser Chromium
 # PLAYWRIGHT_BROWSERS_PATH apunta a un directorio legible por el usuario no-root

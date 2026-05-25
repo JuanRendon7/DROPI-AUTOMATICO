@@ -1,251 +1,543 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="refresh" content="60">
-    <title>Dropi Sales Machine — Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="60">
+  <title>DROPI — Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #03090f;
+      --bg-card:   rgba(4, 16, 34, 0.84);
+      --border:    rgba(0, 200, 255, 0.10);
+      --bh:        rgba(0, 200, 255, 0.42);
+      --cyan:      #00c8ff;
+      --green:     #00ff88;
+      --violet:    #a855f7;
+      --amber:     #f59e0b;
+      --red:       #ff3d5a;
+      --text:      #dde6f0;
+      --text2:     #8fa0b8;
+      --text3:     #3d5270;
+      --font:      'Space Grotesk', system-ui, sans-serif;
+      --mono:      'JetBrains Mono', monospace;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.5; overflow-x: hidden; }
+
+    /* ── Canvas BG ──────────────────────────────────────── */
+    #bg-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    #app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Header ─────────────────────────────────────────── */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 36px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(3, 9, 15, 0.92);
+      backdrop-filter: blur(24px);
+      position: sticky; top: 0; z-index: 100;
+    }
+
+    .hd-left { display: flex; align-items: center; gap: 14px; }
+
+    .logo-box {
+      width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+      background: linear-gradient(135deg, #006e9e 0%, #4a12a0 100%);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 22px rgba(0,200,255,.28), inset 0 1px 0 rgba(255,255,255,.1);
+    }
+    .logo-box svg { width: 22px; height: 22px; }
+
+    .hd-title h1 {
+      font-size: 17px; font-weight: 700; letter-spacing: -.3px;
+      background: linear-gradient(90deg, var(--cyan) 0%, var(--violet) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .hd-title p { font-size: 10px; color: var(--text3); font-family: var(--mono); letter-spacing: 1.2px; text-transform: uppercase; margin-top: 1px; }
+
+    .hd-right { display: flex; align-items: center; gap: 22px; }
+
+    .live-pill {
+      display: flex; align-items: center; gap: 7px;
+      padding: 5px 12px; border-radius: 20px;
+      border: 1px solid rgba(0,255,136,.2);
+      background: rgba(0,255,136,.06);
+      font-family: var(--mono); font-size: 10px; font-weight: 500;
+      color: var(--green); letter-spacing: 1px;
+    }
+    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: ldot 2s ease-in-out infinite; }
+    @keyframes ldot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+
+    #clk { font-family: var(--mono); font-size: 13px; color: var(--text2); letter-spacing: 1.5px; }
+
+    /* ── Main ───────────────────────────────────────────── */
+    main { max-width: 1440px; width: 100%; margin: 0 auto; padding: 30px 36px; flex: 1; display: flex; flex-direction: column; gap: 26px; }
+
+    /* ── Section label ──────────────────────────────────── */
+    .slabel {
+      font-size: 9.5px; font-weight: 600; letter-spacing: 2.5px; text-transform: uppercase;
+      color: var(--text3); font-family: var(--mono); margin-bottom: 14px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .slabel::after { content:''; flex:1; height:1px; background: linear-gradient(to right, rgba(0,200,255,.18), transparent); }
+
+    /* ── Glass card ─────────────────────────────────────── */
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 18px;
+      backdrop-filter: blur(18px);
+      transition: border-color .3s, box-shadow .3s, transform .2s;
+    }
+    .card:hover { border-color: var(--bh); box-shadow: 0 8px 40px rgba(0,200,255,.06); transform: translateY(-2px); }
+
+    /* ── Metrics ────────────────────────────────────────── */
+    .mgrid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+
+    .mc { padding: 22px 20px; position: relative; overflow: hidden; cursor: default; }
+    .mc::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; border-radius:18px 18px 0 0; }
+    .mc.spend::before   { background: linear-gradient(90deg, var(--red),   transparent 70%); }
+    .mc.revenue::before { background: linear-gradient(90deg, var(--green), transparent 70%); }
+    .mc.roas::before    { background: linear-gradient(90deg, var(--violet),transparent 70%); }
+    .mc.camps::before   { background: linear-gradient(90deg, var(--amber), transparent 70%); }
+
+    .mc::after {
+      content:''; position:absolute; bottom:-30px; right:-20px;
+      width:90px; height:90px; border-radius:50%; opacity:.04;
+      background: radial-gradient(circle, white, transparent);
+    }
+
+    .mi { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; font-size:17px; }
+    .mc.spend   .mi { background: rgba(255, 61, 90,.12); }
+    .mc.revenue .mi { background: rgba(0,255,136,.12); }
+    .mc.roas    .mi { background: rgba(168, 85,247,.12); }
+    .mc.camps   .mi { background: rgba(245,158, 11,.12); }
+
+    .mlabel { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:1.2px; font-weight:500; margin-bottom:4px; }
+    .mval   { font-size:32px; font-weight:700; letter-spacing:-1.5px; line-height:1.05; }
+    .mc.spend   .mval { color:var(--red); }
+    .mc.revenue .mval { color:var(--green); }
+    .mc.roas    .mval { color:var(--violet); }
+    .mc.camps   .mval { color:var(--amber); }
+    .msub { font-size:10px; color:var(--text3); margin-top:5px; font-family:var(--mono); }
+
+    /* ── Agents ─────────────────────────────────────────── */
+    .agrid { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; }
+
+    .ac { padding:18px 16px; display:flex; flex-direction:column; gap:10px; }
+
+    .ac-top { display:flex; align-items:center; justify-content:space-between; }
+    .aico { width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; background:rgba(0,200,255,.07); }
+
+    .sdot { width:9px; height:9px; border-radius:50%; }
+    .sdot.green  { background:var(--green);  box-shadow:0 0 10px var(--green); }
+    .sdot.yellow { background:var(--amber);  box-shadow:0 0 10px var(--amber); animation:pdot 1.4s ease-in-out infinite; }
+    .sdot.red    { background:var(--red);    box-shadow:0 0 10px var(--red);   animation:pdot 1.4s ease-in-out infinite; }
+    @keyframes pdot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.65)} }
+
+    .aname { font-size:13px; font-weight:600; color:var(--text); text-transform:capitalize; }
+    .astatus { font-size:11px; font-weight:500; }
+    .astatus.green  { color:var(--green); }
+    .astatus.yellow { color:var(--amber); }
+    .astatus.red    { color:var(--red); }
+    .atime { font-family:var(--mono); font-size:10px; color:var(--text3); }
+
+    /* ── Two columns ────────────────────────────────────── */
+    .twocol { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+
+    /* ── Chart ──────────────────────────────────────────── */
+    .chartcard { padding:22px; }
+    .chartcard canvas { max-height:280px; }
+
+    /* ── Products ───────────────────────────────────────── */
+    .prodcard { padding:22px; }
+
+    .ptable { width:100%; border-collapse:collapse; }
+    .ptable thead th {
+      font-size:9.5px; font-weight:600; letter-spacing:1.8px; text-transform:uppercase;
+      color:var(--text3); padding-bottom:11px; border-bottom:1px solid var(--border);
+      font-family:var(--mono); text-align:left;
+    }
+    .ptable thead th:not(:first-child) { text-align:right; }
+    .ptable tbody tr { border-bottom:1px solid rgba(0,200,255,.04); transition:background .15s; }
+    .ptable tbody tr:hover { background:rgba(0,200,255,.04); }
+    .ptable tbody td { padding:9px 0; vertical-align:middle; }
+    .ptable tbody td:not(:first-child) { text-align:right; }
+
+    .pname { font-size:12px; font-weight:500; color:var(--text); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pplat { font-size:10px; color:var(--text3); font-family:var(--mono); margin-top:2px; }
+    .pscore { font-size:11px; font-weight:600; color:var(--amber); font-family:var(--mono); }
+
+    .roas { font-size:12px; font-weight:600; font-family:var(--mono); }
+    .roas.hi { color:var(--green); }
+    .roas.mi { color:var(--amber); }
+    .roas.lo { color:var(--red); }
+    .roas.na { color:var(--text3); }
+
+    .pspend { font-size:12px; color:var(--text2); font-family:var(--mono); }
+
+    /* ── Log ────────────────────────────────────────────── */
+    .logcard { padding:22px; }
+
+    .ltable { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:11px; }
+    .ltable thead th {
+      text-align:left; color:var(--text3); padding-bottom:10px;
+      border-bottom:1px solid var(--border); font-weight:500;
+      letter-spacing:1.2px; text-transform:uppercase; font-size:9.5px;
+    }
+    .ltable tbody tr { border-bottom:1px solid rgba(255,255,255,.02); transition:background .15s; }
+    .ltable tbody tr:hover { background:rgba(0,200,255,.03); }
+    .ltable tbody td { padding:7px 0; color:var(--text2); }
+
+    .ldate { color:var(--text3); white-space:nowrap; padding-right:18px; }
+
+    .sbadge {
+      display:inline-flex; align-items:center; gap:5px;
+      padding:3px 10px; border-radius:20px;
+      font-size:9.5px; font-weight:600; letter-spacing:.8px; text-transform:uppercase;
+    }
+    .sbadge.success { background:rgba(0,255,136,.08); color:var(--green); border:1px solid rgba(0,255,136,.2); }
+    .sbadge.partial { background:rgba(245,158,11,.08); color:var(--amber); border:1px solid rgba(245,158,11,.2); }
+    .sbadge.failure { background:rgba(255,61,90,.08);  color:var(--red);   border:1px solid rgba(255,61,90,.2); }
+
+    .ec.err { color:var(--red); font-weight:700; }
+    .ec.ok  { color:var(--text3); }
+
+    /* ── Empty state ────────────────────────────────────── */
+    .empty { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:48px 24px; color:var(--text3); gap:6px; text-align:center; }
+    .empty .eico { font-size:26px; opacity:.35; margin-bottom:4px; }
+    .empty p { font-size:13px; }
+    .empty span { font-size:10px; font-family:var(--mono); opacity:.6; }
+
+    /* ── Footer ─────────────────────────────────────────── */
+    footer { text-align:center; padding:18px 36px; font-family:var(--mono); font-size:9.5px; color:var(--text3); border-top:1px solid var(--border); letter-spacing:.8px; }
+
+    /* ── Scrollbar ──────────────────────────────────────── */
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:rgba(0,200,255,.18); border-radius:3px; }
+    ::-webkit-scrollbar-thumb:hover { background:rgba(0,200,255,.4); }
+
+    /* ── Responsive ─────────────────────────────────────── */
+    @media (max-width:1200px) {
+      .mgrid { grid-template-columns:repeat(2,1fr); }
+      .agrid { grid-template-columns:repeat(3,1fr); }
+      .twocol { grid-template-columns:1fr; }
+    }
+    @media (max-width:768px) {
+      main, header, footer { padding-left:18px; padding-right:18px; }
+      .mgrid { grid-template-columns:1fr 1fr; }
+      .agrid { grid-template-columns:1fr 1fr; }
+      #clk { display:none; }
+    }
+  </style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen">
+<body>
 
-<header class="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
-    <div>
-        <h1 class="text-xl font-bold text-white">Dropi Autonomous Sales Machine</h1>
-        <p class="text-xs text-gray-400 mt-0.5">Auto-refresh cada 60s</p>
+<canvas id="bg-canvas"></canvas>
+
+<div id="app">
+
+  <header>
+    <div class="hd-left">
+      <div class="logo-box">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="hd-title">
+        <h1>DROPI SALES MACHINE</h1>
+        <p>Autonomous Commerce Intelligence &nbsp;·&nbsp; Mission Control</p>
+      </div>
     </div>
-</header>
+    <div class="hd-right">
+      <div class="live-pill"><div class="live-dot"></div> LIVE</div>
+      <div id="clk">--:--:--</div>
+    </div>
+  </header>
 
-<main class="max-w-7xl mx-auto px-6 py-6 space-y-6">
+  <main>
 
-    <!-- Global Metrics -->
+    <!-- ── METRICS ─────────────────────────────────────── -->
     <section>
-        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Metricas globales — ultimos 30 dias</h2>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                <p class="text-gray-400 text-xs mb-1">Gasto total</p>
-                <p class="text-2xl font-bold text-red-400">${{ "%.2f"|format(global_metrics.total_spend) }}</p>
-            </div>
-            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                <p class="text-gray-400 text-xs mb-1">Ingresos</p>
-                <p class="text-2xl font-bold text-green-400">${{ "%.2f"|format(global_metrics.total_revenue) }}</p>
-            </div>
-            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                <p class="text-gray-400 text-xs mb-1">ROAS promedio</p>
-                <p class="text-2xl font-bold text-blue-400">{{ "%.2f"|format(global_metrics.avg_roas) }}x</p>
-            </div>
-            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                <p class="text-gray-400 text-xs mb-1">Campanas activas</p>
-                <p class="text-2xl font-bold text-yellow-400">{{ global_metrics.active_campaigns }}</p>
-            </div>
+      <div class="slabel">Métricas globales — últimos 30 días</div>
+      <div class="mgrid">
+        <div class="card mc spend">
+          <div class="mi">💸</div>
+          <div class="mlabel">Gasto total</div>
+          <div class="mval">${{ "%.2f"|format(global_metrics.total_spend) }}</div>
+          <div class="msub">últimos 30 días</div>
         </div>
+        <div class="card mc revenue">
+          <div class="mi">📈</div>
+          <div class="mlabel">Ingresos</div>
+          <div class="mval">${{ "%.2f"|format(global_metrics.total_revenue) }}</div>
+          <div class="msub">últimos 30 días</div>
+        </div>
+        <div class="card mc roas">
+          <div class="mi">⚡</div>
+          <div class="mlabel">ROAS promedio</div>
+          <div class="mval">{{ "%.2f"|format(global_metrics.avg_roas) }}x</div>
+          <div class="msub">retorno sobre inversión</div>
+        </div>
+        <div class="card mc camps">
+          <div class="mi">🎯</div>
+          <div class="mlabel">Campañas activas</div>
+          <div class="mval">{{ global_metrics.active_campaigns }}</div>
+          <div class="msub">en ejecución ahora</div>
+        </div>
+      </div>
     </section>
 
-    <!-- Agent Status -->
+    <!-- ── AGENTS ──────────────────────────────────────── -->
     <section>
-        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Estado de agentes</h2>
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {% for name, info in agents.items() %}
-            <div class="bg-gray-800 rounded-lg p-3 border border-gray-700 flex items-start gap-3">
-                <span class="mt-1 w-2.5 h-2.5 rounded-full flex-shrink-0
-                    {% if info.color == 'green' %}bg-green-400{% elif info.color == 'yellow' %}bg-yellow-400 animate-pulse{% else %}bg-red-400 animate-pulse{% endif %}">
-                </span>
-                <div class="min-w-0">
-                    <p class="text-sm font-medium text-white capitalize">{{ name }}</p>
-                    <p class="text-xs font-medium
-                        {% if info.color == 'green' %}text-green-400{% elif info.color == 'yellow' %}text-yellow-400{% else %}text-red-400{% endif %}">
-                        {{ info.label }}
-                    </p>
-                    {% if info.last_run %}
-                    <p class="text-xs text-gray-500 truncate mt-0.5">{{ info.last_run }}</p>
-                    {% else %}
-                    <p class="text-xs text-gray-600 mt-0.5">Sin ejecucion</p>
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
+      <div class="slabel">Estado de agentes IA</div>
+      <div class="agrid">
+        {% set aicons = {'research':'🔍','dropi':'🛒','campaign':'📣','analytics':'📊','orchestrator':'🤖'} %}
+        {% for name, info in agents.items() %}
+        <div class="card ac">
+          <div class="ac-top">
+            <div class="aico">{{ aicons.get(name, '⚙️') }}</div>
+            <div class="sdot {{ info.color }}"></div>
+          </div>
+          <div>
+            <div class="aname">{{ name | capitalize }}</div>
+            <div class="astatus {{ info.color }}">{{ info.label }}</div>
+          </div>
+          <div class="atime">{% if info.last_run %}{{ info.last_run }}{% else %}Sin ejecución{% endif %}</div>
         </div>
+        {% endfor %}
+      </div>
     </section>
 
-    <!-- Chart + Products -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- ── CHART + PRODUCTS ────────────────────────────── -->
+    <div class="twocol">
 
-        <!-- Revenue vs Spend Chart -->
-        <section class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Gasto vs Ingresos — 7 dias</h2>
-            {% if chart_data.labels %}
-            <canvas id="revenueChart"></canvas>
-            {% else %}
-            <div class="flex items-center justify-center h-40 text-gray-600 text-sm">
-                Sin datos de metricas aun.
-            </div>
-            {% endif %}
-        </section>
+      <div class="card chartcard">
+        <div class="slabel" style="margin-bottom:18px">Gasto vs Ingresos — 7 días</div>
+        {% if chart_data.labels %}
+        <canvas id="rchart"></canvas>
+        {% else %}
+        <div class="empty">
+          <div class="eico">📉</div>
+          <p>Sin datos de métricas aún</p>
+          <span>Los datos aparecerán cuando las campañas estén activas</span>
+        </div>
+        {% endif %}
+      </div>
 
-        <!-- Products Table -->
-        <section class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-            <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Productos activos (top 20)</h2>
-            {% if products %}
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead>
-                        <tr class="text-gray-500 text-xs border-b border-gray-700">
-                            <th class="text-left pb-2 font-medium">Producto</th>
-                            <th class="text-right pb-2 font-medium">Score</th>
-                            <th class="text-right pb-2 font-medium">ROAS 7d</th>
-                            <th class="text-right pb-2 font-medium">Gasto 7d</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-700/50">
-                        {% for p in products %}
-                        <tr class="hover:bg-gray-700/30">
-                            <td class="py-2 pr-2">
-                                <div class="text-white text-xs truncate max-w-[180px]" title="{{ p.name }}">{{ p.name }}</div>
-                                {% if p.platforms %}
-                                <div class="text-gray-500 text-xs">{{ p.platforms | join(", ") }}</div>
-                                {% else %}
-                                <div class="text-gray-600 text-xs">sin campanas</div>
-                                {% endif %}
-                            </td>
-                            <td class="py-2 text-right text-xs">
-                                {% if p.score is not none %}
-                                <span class="text-yellow-400 font-medium">{{ "%.0f"|format(p.score) }}</span>
-                                {% else %}
-                                <span class="text-gray-600">—</span>
-                                {% endif %}
-                            </td>
-                            <td class="py-2 text-right text-xs font-medium
-                                {% if p.roas_7d >= 3.0 %}text-green-400
-                                {% elif p.roas_7d >= 1.5 %}text-yellow-400
-                                {% elif p.roas_7d > 0 %}text-red-400
-                                {% else %}text-gray-600{% endif %}">
-                                {% if p.roas_7d > 0 %}{{ "%.2f"|format(p.roas_7d) }}x{% else %}—{% endif %}
-                            </td>
-                            <td class="py-2 text-right text-xs text-gray-300">
-                                {% if p.spend_7d > 0 %}${{ "%.2f"|format(p.spend_7d) }}{% else %}—{% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <p class="text-gray-600 text-sm">No hay productos activos.</p>
-            {% endif %}
-        </section>
-    </div>
-
-    <!-- Orchestrator Log -->
-    <section class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Log del orquestador — ultimos 50 ciclos</h2>
-        {% if orc_log %}
-        <div class="overflow-x-auto">
-            <table class="w-full text-xs">
-                <thead>
-                    <tr class="text-gray-500 border-b border-gray-700">
-                        <th class="text-left pb-2 font-medium pr-3">Fecha</th>
-                        <th class="text-left pb-2 font-medium pr-3">Estado</th>
-                        <th class="text-left pb-2 font-medium pr-3">Research</th>
-                        <th class="text-left pb-2 font-medium pr-3">Dropi</th>
-                        <th class="text-left pb-2 font-medium pr-3">Campaign</th>
-                        <th class="text-left pb-2 font-medium pr-3">Analytics</th>
-                        <th class="text-right pb-2 font-medium">Errores</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-700/50">
-                    {% for entry in orc_log %}
-                    <tr class="hover:bg-gray-700/30">
-                        <td class="py-1.5 text-gray-400 whitespace-nowrap pr-3">{{ entry.created_at }}</td>
-                        <td class="py-1.5 pr-3">
-                            <span class="inline-flex px-1.5 py-0.5 rounded text-xs font-medium
-                                {% if entry.status == 'success' %}bg-green-900/60 text-green-300
-                                {% elif entry.status == 'partial' %}bg-yellow-900/60 text-yellow-300
-                                {% else %}bg-red-900/60 text-red-300{% endif %}">
-                                {{ entry.status }}
-                            </span>
-                        </td>
-                        <td class="py-1.5 pr-3 text-gray-400">{{ entry.meta.get('research_status', '—') }}</td>
-                        <td class="py-1.5 pr-3 text-gray-400">{{ entry.meta.get('dropi_status', '—') }}</td>
-                        <td class="py-1.5 pr-3 text-gray-400">{{ entry.meta.get('campaign_status', '—') }}</td>
-                        <td class="py-1.5 pr-3 text-gray-400">{{ entry.meta.get('analytics_optimize_status', '—') }}</td>
-                        <td class="py-1.5 text-right">
-                            {% set err_count = entry.meta.get('errors', []) | length %}
-                            {% if err_count > 0 %}
-                            <span class="text-red-400 font-medium">{{ err_count }}</span>
-                            {% else %}
-                            <span class="text-gray-600">0</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+      <div class="card prodcard">
+        <div class="slabel" style="margin-bottom:18px">Productos activos — Top 20</div>
+        {% if products %}
+        <div style="overflow:auto;max-height:330px">
+          <table class="ptable">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Score</th>
+                <th>ROAS 7d</th>
+                <th>Gasto 7d</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in products %}
+              <tr>
+                <td>
+                  <div class="pname" title="{{ p.name }}">{{ p.name }}</div>
+                  <div class="pplat">{% if p.platforms %}{{ p.platforms | join(" · ") }}{% else %}sin campañas{% endif %}</div>
+                </td>
+                <td>{% if p.score is not none %}<span class="pscore">{{ "%.0f"|format(p.score) }}</span>{% else %}<span class="roas na">—</span>{% endif %}</td>
+                <td>
+                  {% if p.roas_7d > 0 %}
+                  <span class="roas {% if p.roas_7d >= 3.0 %}hi{% elif p.roas_7d >= 1.5 %}mi{% else %}lo{% endif %}">{{ "%.2f"|format(p.roas_7d) }}x</span>
+                  {% else %}<span class="roas na">—</span>{% endif %}
+                </td>
+                <td><span class="pspend">{% if p.spend_7d > 0 %}${{ "%.2f"|format(p.spend_7d) }}{% else %}—{% endif %}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
         {% else %}
-        <p class="text-gray-600 text-sm">Sin ciclos registrados.</p>
+        <div class="empty">
+          <div class="eico">📦</div>
+          <p>No hay productos activos</p>
+          <span>El agente Research los descubrirá automáticamente</span>
+        </div>
         {% endif %}
+      </div>
+
+    </div>
+
+    <!-- ── ORCHESTRATOR LOG ────────────────────────────── -->
+    <section>
+      <div class="card logcard">
+        <div class="slabel" style="margin-bottom:18px">Log del orquestador — últimos 50 ciclos</div>
+        {% if orc_log %}
+        <div style="overflow:auto;max-height:300px">
+          <table class="ltable">
+            <thead>
+              <tr>
+                <th style="padding-right:18px">Timestamp</th>
+                <th style="padding-right:18px">Estado</th>
+                <th style="padding-right:18px;text-align:center">Research</th>
+                <th style="padding-right:18px;text-align:center">Dropi</th>
+                <th style="padding-right:18px;text-align:center">Campaign</th>
+                <th style="padding-right:18px;text-align:center">Analytics</th>
+                <th style="text-align:right">Errores</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in orc_log %}
+              <tr>
+                <td class="ldate" style="padding-right:18px">{{ e.created_at }}</td>
+                <td style="padding-right:18px"><span class="sbadge {{ e.status }}">{{ e.status }}</span></td>
+                <td style="padding-right:18px;text-align:center">{{ e.meta.get('research_status','—') }}</td>
+                <td style="padding-right:18px;text-align:center">{{ e.meta.get('dropi_status','—') }}</td>
+                <td style="padding-right:18px;text-align:center">{{ e.meta.get('campaign_status','—') }}</td>
+                <td style="padding-right:18px;text-align:center">{{ e.meta.get('analytics_optimize_status','—') }}</td>
+                <td style="text-align:right">
+                  {% set ec = e.meta.get('errors',[]) | length %}
+                  <span class="ec {% if ec > 0 %}err{% else %}ok{% endif %}">{{ ec }}</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty">
+          <div class="eico">🤖</div>
+          <p>Sin ciclos registrados aún</p>
+          <span>El orquestador se activa cada 24 h automáticamente</span>
+        </div>
+        {% endif %}
+      </div>
     </section>
 
-</main>
+  </main>
+
+  <footer>DROPI AUTONOMOUS SALES MACHINE &nbsp;·&nbsp; v0.1.0 &nbsp;·&nbsp; Auto-refresh 60s</footer>
+
+</div><!-- #app -->
 
 <script>
-(function () {
-    var chartData = {{ chart_data | tojson }};
-    if (!chartData.labels || chartData.labels.length === 0) return;
+/* ── Live clock ─────────────────────────────────── */
+(function(){
+  function tick(){
+    var el=document.getElementById('clk'); if(!el)return;
+    var n=new Date();
+    el.textContent=[n.getHours(),n.getMinutes(),n.getSeconds()].map(function(v){return String(v).padStart(2,'0');}).join(':');
+  }
+  tick(); setInterval(tick,1000);
+})();
 
-    var ctx = document.getElementById('revenueChart');
-    if (!ctx) return;
+/* ── Particle / network background ─────────────── */
+(function(){
+  var cv=document.getElementById('bg-canvas');
+  var cx=cv.getContext('2d');
+  var N=[]; var CNT=65; var MD=155;
 
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: chartData.labels,
-            datasets: [
-                {
-                    label: 'Ingresos',
-                    data: chartData.revenue,
-                    borderColor: 'rgb(74, 222, 128)',
-                    backgroundColor: 'rgba(74, 222, 128, 0.08)',
-                    borderWidth: 2,
-                    pointRadius: 3,
-                    tension: 0.3,
-                    fill: true,
-                },
-                {
-                    label: 'Gasto',
-                    data: chartData.spend,
-                    borderColor: 'rgb(248, 113, 113)',
-                    backgroundColor: 'rgba(248, 113, 113, 0.08)',
-                    borderWidth: 2,
-                    pointRadius: 3,
-                    tension: 0.3,
-                    fill: true,
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            interaction: { mode: 'index', intersect: false },
-            plugins: {
-                legend: { labels: { color: '#9ca3af', font: { size: 11 } } }
-            },
-            scales: {
-                x: {
-                    ticks: { color: '#6b7280', font: { size: 10 } },
-                    grid: { color: 'rgba(55,65,81,0.5)' }
-                },
-                y: {
-                    ticks: {
-                        color: '#6b7280',
-                        font: { size: 10 },
-                        callback: function (v) { return '$' + v.toFixed(0); }
-                    },
-                    grid: { color: 'rgba(55,65,81,0.5)' }
-                }
-            }
+  function resize(){ cv.width=window.innerWidth; cv.height=window.innerHeight; }
+
+  function mk(){
+    return { x:Math.random()*cv.width, y:Math.random()*cv.height,
+             vx:(Math.random()-.5)*.35, vy:(Math.random()-.5)*.35,
+             r:Math.random()*1.4+.5, hot:Math.random()<.13, ph:Math.random()*Math.PI*2 };
+  }
+
+  function frame(){
+    cx.clearRect(0,0,cv.width,cv.height);
+    for(var a=0;a<N.length;a++){
+      for(var b=a+1;b<N.length;b++){
+        var dx=N[a].x-N[b].x, dy=N[a].y-N[b].y;
+        var d=Math.sqrt(dx*dx+dy*dy);
+        if(d<MD){
+          cx.beginPath(); cx.moveTo(N[a].x,N[a].y); cx.lineTo(N[b].x,N[b].y);
+          cx.strokeStyle='rgba(0,190,230,'+(((1-d/MD)*.16))+')';
+          cx.lineWidth=.55; cx.stroke();
         }
-    });
+      }
+    }
+    for(var i=0;i<N.length;i++){
+      var n=N[i]; n.ph+=.038;
+      var al=n.hot?(.45+.45*Math.sin(n.ph)):.48;
+      var co=n.hot?('rgba(0,255,136,'+al+')'): ('rgba(0,190,230,'+al+')');
+      var rr=n.hot?n.r*(1.25+.25*Math.sin(n.ph)):n.r;
+      cx.beginPath(); cx.arc(n.x,n.y,rr,0,Math.PI*2); cx.fillStyle=co; cx.fill();
+      n.x+=n.vx; n.y+=n.vy;
+      if(n.x<0||n.x>cv.width)n.vx*=-1;
+      if(n.y<0||n.y>cv.height)n.vy*=-1;
+    }
+    requestAnimationFrame(frame);
+  }
+
+  resize();
+  window.addEventListener('resize',function(){ resize(); N=[]; for(var i=0;i<CNT;i++)N.push(mk()); });
+  for(var i=0;i<CNT;i++) N.push(mk());
+  frame();
+})();
+
+/* ── Chart.js ───────────────────────────────────── */
+(function(){
+  var cd={{ chart_data | tojson }};
+  if(!cd.labels||!cd.labels.length)return;
+  var el=document.getElementById('rchart'); if(!el)return;
+
+  function grad(ctx,chart,r,g,b){
+    var a=chart.chartArea; if(!a) return 'rgba('+r+','+g+','+b+',.1)';
+    var gr=ctx.createLinearGradient(0,a.top,0,a.bottom);
+    gr.addColorStop(0,'rgba('+r+','+g+','+b+',.28)');
+    gr.addColorStop(1,'rgba('+r+','+g+','+b+',0)');
+    return gr;
+  }
+
+  new Chart(el,{
+    type:'line',
+    data:{
+      labels:cd.labels,
+      datasets:[
+        { label:'Ingresos', data:cd.revenue,
+          borderColor:'#00ff88',
+          backgroundColor:function(c){ return grad(c.chart.ctx,c.chart,0,255,136); },
+          borderWidth:2, pointRadius:4, pointBackgroundColor:'#00ff88',
+          pointBorderColor:'transparent', tension:.4, fill:true },
+        { label:'Gasto', data:cd.spend,
+          borderColor:'#ff3d5a',
+          backgroundColor:function(c){ return grad(c.chart.ctx,c.chart,255,61,90); },
+          borderWidth:2, pointRadius:4, pointBackgroundColor:'#ff3d5a',
+          pointBorderColor:'transparent', tension:.4, fill:true }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{labels:{color:'#8fa0b8',font:{size:11,family:"'JetBrains Mono',monospace"},
+          boxWidth:9,boxHeight:9,usePointStyle:true,pointStyle:'circle'}},
+        tooltip:{
+          backgroundColor:'rgba(4,16,34,.96)',
+          borderColor:'rgba(0,200,255,.25)', borderWidth:1,
+          titleColor:'#8fa0b8', bodyColor:'#dde6f0',
+          padding:12, cornerRadius:10,
+          callbacks:{label:function(c){return ' '+c.dataset.label+': $'+c.parsed.y.toFixed(2);}}
+        }
+      },
+      scales:{
+        x:{ticks:{color:'#3d5270',font:{size:10,family:"'JetBrains Mono',monospace"}},
+           grid:{color:'rgba(0,200,255,.05)'}, border:{color:'rgba(0,200,255,.08)'}},
+        y:{ticks:{color:'#3d5270',font:{size:10,family:"'JetBrains Mono',monospace"},
+              callback:function(v){return '$'+v.toFixed(0);}},
+           grid:{color:'rgba(0,200,255,.05)'}, border:{color:'rgba(0,200,255,.08)'}}
+      }
+    }
+  });
 })();
 </script>
 

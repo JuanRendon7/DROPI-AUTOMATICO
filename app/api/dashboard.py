@@ -59,7 +59,7 @@ def _session(dsm_session: str | None = Cookie(default=None)) -> str | None:
     return _verify_token(dsm_session) if dsm_session else None
 
 
-def _auth(user: Annotated[str | None, Depends(_session)] = None) -> str:
+def _auth(user: str | None = Depends(_session)) -> str:
     if not user:
         raise HTTPException(status_code=401)
     return user
@@ -68,7 +68,7 @@ def _auth(user: Annotated[str | None, Depends(_session)] = None) -> str:
 # ── Login / Logout ────────────────────────────────────────────────────────────────
 
 @router.get("/login")
-async def login_page(request: Request, user: Annotated[str | None, Depends(_session)] = None):
+async def login_page(request: Request, user: str | None = Depends(_session)):
     if user:
         return RedirectResponse(url="/dashboard", status_code=302)
     return templates.TemplateResponse(request, "login.html", {"error": ""})
@@ -257,7 +257,7 @@ async def _get_chart_data(db: AsyncSession, days: int = 7) -> dict:
 async def dashboard(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: Annotated[str | None, Depends(_session)] = None,
+    user: str | None = Depends(_session),
 ):
     if not user:
         return RedirectResponse(url="/login", status_code=302)

@@ -2,7 +2,7 @@
 
 ## Sesión actual
 - **Fecha:** 2026-05-24
-- **Fase activa:** 4 — Campaign Agent
+- **Fase activa:** todas completadas
 - **Estado:** `completed` ✅
 
 ## Progreso de fases
@@ -12,9 +12,9 @@
 | 2 — Agente Dropi | `completed` | 100% |
 | 3 — Research Agent | `completed` | 100% |
 | 4 — Campaign Agent | `completed` | 100% |
-| 5 — Analytics Agent | `not_started` | 0% |
-| 6 — Orquestador | `not_started` | 0% |
-| 7 — Dashboard | `not_started` | 0% |
+| 5 — Analytics Agent | `completed` | 100% |
+| 6 — Orquestador | `completed` | 100% |
+| 7 — Dashboard | `completed` | 100% |
 
 ## Decisiones clave tomadas
 - Stack: Python + FastAPI + LangGraph + Playwright
@@ -31,10 +31,8 @@
 - [ ] Dropi username / password
 - [ ] Telegram Bot token (alertas)
 
-## Próximo comando
-```
-/gsd:plan-phase 5
-```
+## Próximo paso
+Proyecto MVP completo. Configurar credenciales en `.env` y hacer deploy.
 
 ## Notas
 - Inicializado el 2026-05-24 via `/gsd:new-project`

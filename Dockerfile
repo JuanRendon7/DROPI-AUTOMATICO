@@ -1,29 +1,36 @@
 FROM python:3.11-slim
 
+# curl para healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
+
 # Usuario no-root
 RUN groupadd --gid 1001 appgroup && \
     useradd --uid 1001 --gid appgroup --shell /bin/bash --create-home appuser
 
 WORKDIR /app
 
-# Instalar dependencias del sistema
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copiar e instalar dependencias Python primero (capa cacheada)
+# Instalar dependencias Python (capa cacheada — solo se reconstruye si pyproject.toml cambia)
 COPY pyproject.toml .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -e "."
+    pip install --no-cache-dir -e ".[agents]"
+
+# Instalar dependencias del sistema para Playwright + browser Chromium
+# PLAYWRIGHT_BROWSERS_PATH apunta a un directorio legible por el usuario no-root
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
+RUN playwright install-deps chromium && \
+    playwright install chromium && \
+    chmod -R o+rx /opt/pw-browsers
 
 # Copiar código fuente
 COPY --chown=appuser:appgroup . .
+RUN chmod +x start.sh
 
 USER appuser
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "start.sh"]

@@ -68,10 +68,19 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     app_version: str = "0.1.0"
 
+    # ── Dashboard ──────────────────────────────────────────────────
+    dashboard_username: str = "admin"
+    dashboard_password: str = "changeme"
+
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, v: str) -> str:
-        if not v.startswith(("postgresql", "sqlite")):
+        # Railway provee postgres:// o postgresql:// — convertir al driver asyncpg
+        if v.startswith("postgres://"):
+            v = v.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif v.startswith("postgresql://"):
+            v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if not v.startswith(("postgresql+asyncpg://", "sqlite")):
             raise ValueError("DATABASE_URL debe ser postgresql o sqlite")
         return v
 

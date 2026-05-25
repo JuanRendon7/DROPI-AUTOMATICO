@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="60">
+    <title>Dropi Sales Machine — Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+
+<header class="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
+    <div>
+        <h1 class="text-xl font-bold text-white">Dropi Autonomous Sales Machine</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Auto-refresh cada 60s</p>
+    </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-6 py-6 space-y-6">
+
+    <!-- Global Metrics -->
+    <section>
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Metricas globales — ultimos 30 dias</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <p class="text-gray-400 text-xs mb-1">Gasto total</p>
+                <p class="text-2xl font-bold text-red-400">${{ "%.2f"|format(global_metrics.total_spend) }}</p>
+            </div>
+            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <p class="text-gray-400 text-xs mb-1">Ingresos</p>
+                <p class="text-2xl font-bold text-green-400">${{ "%.2f"|format(global_metrics.total_revenue) }}</p>
+            </div>
+            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <p class="text-gray-400 text-xs mb-1">ROAS promedio</p>
+                <p class="text-2xl font-bold text-blue-400">{{ "%.2f"|format(global_metrics.avg_roas) }}x</p>
+            </div>
+            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <p class="text-gray-400 text-xs mb-1">Campanas activas</p>
+                <p class="text-2xl font-bold text-yellow-400">{{ global_metrics.active_campaigns }}</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Agent Status -->
+    <section>
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Estado de agentes</h2>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {% for name, info in agents.items() %}
+            <div class="bg-gray-800 rounded-lg p-3 border border-gray-700 flex items-start gap-3">
+                <span class="mt-1 w-2.5 h-2.5 rounded-full flex-shrink-0
+                    {% if info.color == 'green' %}bg-green-400{% elif info.color == 'yellow' %}bg-yellow-400 animate-pulse{% else %}bg-red-400 animate-pulse{% endif %}">
+                </span>
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-white capitalize">{{ name }}</p>
+                    <p class="text-xs font-medium
+                        {% if info.color == 'green' %}text-green-400{% elif info.color == 'yellow' %}text-yellow-400{% else %}text-red-400{% endif %}">
+                        {{ info.label }}
+                    </p>
+                    {% if info.last_run %}
+                    <p class="text-xs text-gray-500 truncate mt-0.5">{{ info.last_run }}</p>
+                    {% else %}
+                    <p class="text-xs text-gray-600 mt-0.5">Sin ejecucion</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Chart + Products -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- Revenue vs Spend Chart -->
+        <section class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Gasto vs Ingresos — 7 dias</h2>
+            {% if chart_data.labels %}
+            <canvas id="revenueChart"></canvas>
+            {% else %}
+            <div class="flex items-center justify-center h-40 text-gray-600 text-sm">
+                Sin datos de metricas aun.
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- Products Table -->
+        <section class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Productos activos (top 20)</h2>
+            {% if products %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-gray-500 text-xs border-b border-gray-700">
+                            <th class="text-left pb-2 font-medium">Producto</th>
+                            <th class="text-right pb-2 font-medium">Score</th>
+                            <th class="text-right pb-2 font-medium">ROAS 7d</th>
+                            <th class="text-right pb-2 font-medium">Gasto 7d</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-700/50">
+                        {% for p in products %}
+                        <tr class="hover:bg-gray-700/30">
+                            <td class="py-2 pr-2">
+                                <div class="text-white text-xs truncate max-w-[180px]" title="{{ p.name }}">{{ p.name }}</div>
+                                {% if p.platforms %}
+                                <div class="text-gray-500 text-xs">{{ p.platforms | join(", ") }}</div>
+                                {% else %}
+                                <div class="text-gray-600 text-xs">sin campanas</div>
+                                {% endif %}
+                            </td>
+                            <td class="py-2 text-right text-xs">
+                                {% if p.score is not none %}
+                                <span class="text-yellow-400 font-medium">{{ "%.0f"|format(p.score) }}</span>
+                                {% else %}
+                                <span class="text-gray-600">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-2 text-right text-xs font-medium
+                                {% if p.roas_7d >= 3.0 %}text-green-400
+                                {% elif p.roas_7d >= 1.5 %}text-yellow-400
+                                {% elif p.roas_7d > 0 %}text-red-400
+                                {% else %}text-gray-600{% endif %}">
+                                {% if p.roas_7d > 0 %}{{ "%.2f"|format(p.roas_7d) }}x{% else %}—{% endif %}
+                            </td>
+                            <td class="py-2 text-right text-xs text-gray-300">
+                                {% if p.spend_7d > 0 %}${{ "%.2f"|format(p.spend_7d) }}{% else %}—{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-gray-600 text-sm">No hay productos activos.</p>
+            {% endif %}
+        </section>
+    </div>
+
+    <!-- Orchestrator Log -->
+    <section class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Log del orquestador — ultimos 50 ciclos</h2>
+        {% if orc_log %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+                <thead>
+                    <tr class="text-gray-500 border-b border-gray-700">
+                        <th class="text-left pb-2 font-medium pr-3">Fecha</th>
+                        <th class="text-left pb-2 font-medium pr-3">Estado</th>
+                        <th class="text-left pb-2 font-medium pr-3">Research</th>
+                        <th class="text-left pb-2 font-medium pr-3">Dropi</th>
+                        <th class="text-left pb-2 font-medium pr-3">Campaign</th>
+                        <th class="text-left pb-2 font-medium pr-3">Analytics</th>
+                        <th class="text-right pb-2 font-medium">Errores</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-700/50">
+                    {% for entry in orc_log %}
+                    <tr class="hover:bg-gray-700/30">
+                        <td class="py-1.5 text-gray-400 whitespace-nowrap pr-3">{{ entry.created_at }}</td>
+                        <td class="py-1.5 pr-3">
+                            <span class="inline-flex px-1.5 py-0.5 rounded text-xs font-medium
+                                {% if entry.status == 'success' %}bg-green-900/60 text-green-300
+                                {% elif entry.status == 'partial' %}bg-yellow-900/60 text-yellow-300
+                                {% else %}bg-red-900/60 text-red-300{% endif %}">
+                                {{ entry.status }}
+                            </span>
+                        </td>
+                        <td class="py-1.5 pr-3 text-gray-400">{{ entry.meta.get('research_status', '—') }}</td>
+                        <td class="py-1.5 pr-3 text-gray-400">{{ entry.meta.get('dropi_status', '—') }}</td>
+                        <td class="py-1.5 pr-3 text-gray-400">{{ entry.meta.get('campaign_status', '—') }}</td>
+                        <td class="py-1.5 pr-3 text-gray-400">{{ entry.meta.get('analytics_optimize_status', '—') }}</td>
+                        <td class="py-1.5 text-right">
+                            {% set err_count = entry.meta.get('errors', []) | length %}
+                            {% if err_count > 0 %}
+                            <span class="text-red-400 font-medium">{{ err_count }}</span>
+                            {% else %}
+                            <span class="text-gray-600">0</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-gray-600 text-sm">Sin ciclos registrados.</p>
+        {% endif %}
+    </section>
+
+</main>
+
+<script>
+(function () {
+    var chartData = {{ chart_data | tojson }};
+    if (!chartData.labels || chartData.labels.length === 0) return;
+
+    var ctx = document.getElementById('revenueChart');
+    if (!ctx) return;
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartData.labels,
+            datasets: [
+                {
+                    label: 'Ingresos',
+                    data: chartData.revenue,
+                    borderColor: 'rgb(74, 222, 128)',
+                    backgroundColor: 'rgba(74, 222, 128, 0.08)',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    tension: 0.3,
+                    fill: true,
+                },
+                {
+                    label: 'Gasto',
+                    data: chartData.spend,
+                    borderColor: 'rgb(248, 113, 113)',
+                    backgroundColor: 'rgba(248, 113, 113, 0.08)',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    tension: 0.3,
+                    fill: true,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { labels: { color: '#9ca3af', font: { size: 11 } } }
+            },
+            scales: {
+                x: {
+                    ticks: { color: '#6b7280', font: { size: 10 } },
+                    grid: { color: 'rgba(55,65,81,0.5)' }
+                },
+                y: {
+                    ticks: {
+                        color: '#6b7280',
+                        font: { size: 10 },
+                        callback: function (v) { return '$' + v.toFixed(0); }
+                    },
+                    grid: { color: 'rgba(55,65,81,0.5)' }
+                }
+            }
+        }
+    });
+})();
+</script>
+
+</body>
+</html>

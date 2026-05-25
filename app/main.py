@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import app.logger  # noqa: F401 — configura structlog al importar
 from app.api.health import router as health_router
+from app.api.dashboard import router as dashboard_router
+from app.api.orchestrator import router as orchestrator_router
 from app.config import get_settings
 
 
@@ -39,6 +41,8 @@ def create_app() -> FastAPI:
     )
 
     application.include_router(health_router)
+    application.include_router(orchestrator_router)
+    application.include_router(dashboard_router)
     return application
 
 

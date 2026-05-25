@@ -21,6 +21,7 @@ dependencies = [
     "celery[redis]>=5.4",
     "anthropic>=0.28",
     "httpx>=0.27",
+    "jinja2>=3.1",
     "structlog>=24.1",
     "python-dotenv>=1.0",
     "tenacity>=8.3",
@@ -30,7 +31,8 @@ dependencies = [
 [project.optional-dependencies]
 agents = [
     "playwright>=1.44",
-    "langgraph>=0.1",
+    "langgraph>=0.2",
+    "langgraph-checkpoint-redis>=0.1",
     "langchain-anthropic>=0.1",
     "pytrends-modern>=0.2",
     "TikTokApi>=7.3",

@@ -6,6 +6,26 @@ from app.logger import get_logger
 log = get_logger("tasks")
 
 
+@celery_app.task(name="app.tasks.run_analytics_collect", bind=True, max_retries=2)
+def run_analytics_collect(self):
+    """Recolecta métricas del día anterior de todas las plataformas. Programado: 08:00 COT diario."""
+    try:
+        asyncio.run(_run_analytics_collect_async())
+    except Exception as exc:
+        log.error("run_analytics_collect falló", error=str(exc))
+        raise self.retry(exc=exc, countdown=300)
+
+
+@celery_app.task(name="app.tasks.run_analytics_optimize", bind=True, max_retries=2)
+def run_analytics_optimize(self):
+    """Aplica reglas de optimización autónoma. Programado: 10:00 COT diario."""
+    try:
+        asyncio.run(_run_analytics_optimize_async())
+    except Exception as exc:
+        log.error("run_analytics_optimize falló", error=str(exc))
+        raise self.retry(exc=exc, countdown=300)
+
+
 @celery_app.task(name="app.tasks.run_campaign_creation", bind=True, max_retries=2)
 def run_campaign_creation(self):
     """Lanza campañas en Meta/TikTok/Google para el top producto del Research. Programado: 09:00 COT diario."""
@@ -34,6 +54,37 @@ def run_dropi_sync(self):
     except Exception as exc:
         log.error("run_dropi_sync falló", error=str(exc))
         raise self.retry(exc=exc, countdown=120)
+
+
+async def _run_analytics_collect_async() -> None:
+    from agents.analytics.agent import AnalyticsAgent
+    from app.config import get_settings
+    from app.database import AsyncSessionLocal
+
+    settings = get_settings()
+    agent = AnalyticsAgent(settings)
+
+    async with AsyncSessionLocal() as db:
+        snapshots = await agent.collect_metrics(db)
+        log.info("Analytics collect completado via Celery", snapshots=len(snapshots))
+
+
+async def _run_analytics_optimize_async() -> None:
+    from agents.analytics.agent import AnalyticsAgent
+    from app.config import get_settings
+    from app.database import AsyncSessionLocal
+
+    settings = get_settings()
+    agent = AnalyticsAgent(settings)
+
+    async with AsyncSessionLocal() as db:
+        actions = await agent.run_optimization(db)
+        log.info(
+            "Analytics optimize completado via Celery",
+            actions=len(actions),
+            paused=sum(1 for a in actions if a.action == "pause" and a.executed),
+            scaled=sum(1 for a in actions if a.action == "scale_budget" and a.executed),
+        )
 
 
 async def _run_research_async() -> None:
@@ -80,6 +131,34 @@ async def _run_campaign_async() -> None:
             product=product.name,
             platforms=result.successful_platforms,
         )
+
+
+@celery_app.task(name="app.tasks.run_orchestrator_cycle", bind=True, max_retries=1)
+def run_orchestrator_cycle(self):
+    """Ejecuta el ciclo completo de orquestación Research→Dropi→Campaign→Analytics.
+    Programado: 06:30 COT diario (después del Research standalone de 06:00)."""
+    try:
+        asyncio.run(_run_orchestrator_async())
+    except Exception as exc:
+        log.error("run_orchestrator_cycle falló", error=str(exc))
+        raise self.retry(exc=exc, countdown=600)  # reintento en 10 min
+
+
+async def _run_orchestrator_async() -> None:
+    from agents.orchestrator.agent import OrchestratorAgent
+    from app.config import get_settings
+
+    settings = get_settings()
+    agent = OrchestratorAgent(settings)
+    final_state = await agent.run_cycle(trigger_source="scheduled")
+    log.info(
+        "Orchestrator cycle completado via Celery",
+        run_id=final_state.get("run_id"),
+        research=final_state.get("research_status"),
+        campaign=final_state.get("campaign_status"),
+        campaign_platforms=final_state.get("campaign_platforms", []),
+        errors=len(final_state.get("errors", [])),
+    )
 
 
 async def _run_dropi_sync_async() -> None:

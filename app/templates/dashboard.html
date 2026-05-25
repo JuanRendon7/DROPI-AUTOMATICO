@@ -32,6 +32,22 @@
 
     /* ── Canvas BG ──────────────────────────────────────── */
     #bg-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    #bg-icons  { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+
+    @keyframes fly-r {
+      0%   { transform: translateX(-80px) translateY(0px); }
+      50%  { transform: translateX(50vw)  translateY(-50px); }
+      100% { transform: translateX(calc(100vw + 80px)) translateY(0px); }
+    }
+    @keyframes fly-l {
+      0%   { transform: translateX(calc(100vw + 80px)) translateY(0px); }
+      50%  { transform: translateX(50vw)  translateY(50px); }
+      100% { transform: translateX(-80px) translateY(0px); }
+    }
+    @keyframes fly-d {
+      0%   { transform: translateX(-80px) translateY(-40px); }
+      100% { transform: translateX(calc(100vw + 80px)) translateY(80px); }
+    }
 
     /* ── Layout ─────────────────────────────────────────── */
     #app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
@@ -303,6 +319,7 @@
 <body>
 
 <canvas id="bg-canvas"></canvas>
+<div id="bg-icons"></div>
 
 <div id="app">
 
@@ -502,6 +519,26 @@
 </div>
 
 <script>
+/* ── Commerce floating icons ────────────────────── */
+(function(){
+  var container=document.getElementById('bg-icons');
+  var pool=['✈','✈','✈','🚢','🚚','🚚','📦','📦','📦','🛵','🚀','⛵'];
+  var anims=['fly-r','fly-r','fly-r','fly-l','fly-l','fly-d'];
+  for(var i=0;i<22;i++){
+    var el=document.createElement('span');
+    var anim=anims[Math.floor(Math.random()*anims.length)];
+    var size=13+Math.random()*24;
+    var top=Math.random()*94;
+    var dur=14+Math.random()*30;
+    var delay=-Math.random()*dur;
+    el.textContent=pool[Math.floor(Math.random()*pool.length)];
+    el.style.cssText='position:absolute;font-size:'+size+'px;top:'+top+'%;left:0;'
+      +'opacity:0.06;filter:grayscale(1) brightness(1.5);'
+      +'animation:'+anim+' '+dur+'s linear '+delay+'s infinite;';
+    container.appendChild(el);
+  }
+})();
+
 /* ── Live clock ─────────────────────────────────── */
 (function(){
   function tick(){

@@ -1,9 +1,12 @@
-import secrets
+import hashlib
+import hmac
+import secrets as _secrets
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,35 +17,101 @@ from app.logger import get_logger
 from app.models import AgentLog, Campaign, Metric, Product
 
 router = APIRouter(tags=["dashboard"])
-security = HTTPBasic()
 templates = Jinja2Templates(directory="app/templates")
 log = get_logger("api.dashboard")
 
+_COOKIE = "dsm_session"
+_MAX_AGE = 86400  # 24 h
 
-# ── Auth ─────────────────────────────────────────────────────────────────────────
 
-def _check_auth(credentials: Annotated[HTTPBasicCredentials, Depends(security)]) -> str:
-    """Verifica credenciales HTTP Basic contra Settings. Usa compare_digest para evitar timing attacks."""
-    settings = get_settings()
-    ok_user = secrets.compare_digest(
-        credentials.username.encode(), settings.dashboard_username.encode()
+# ── Cookie auth ───────────────────────────────────────────────────────────────────
+
+def _secret() -> str:
+    s = get_settings()
+    return hashlib.sha256(f"{s.dashboard_username}:{s.dashboard_password}".encode()).hexdigest()
+
+
+def _make_token(username: str) -> str:
+    ts = str(int(time.time()))
+    payload = f"{username}|{ts}"
+    sig = hmac.new(_secret().encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}|{sig}"
+
+
+def _verify_token(token: str) -> str | None:
+    try:
+        parts = token.split("|")
+        if len(parts) != 3:
+            return None
+        username, ts, sig = parts
+        if time.time() - float(ts) > _MAX_AGE:
+            return None
+        payload = f"{username}|{ts}"
+        expected = hmac.new(_secret().encode(), payload.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return None
+        return username
+    except Exception:
+        return None
+
+
+def _session(dsm_session: str | None = Cookie(default=None)) -> str | None:
+    return _verify_token(dsm_session) if dsm_session else None
+
+
+def _auth(user: Annotated[str | None, Depends(_session)] = None) -> str:
+    if not user:
+        raise HTTPException(status_code=401)
+    return user
+
+
+# ── Login / Logout ────────────────────────────────────────────────────────────────
+
+@router.get("/login")
+async def login_page(request: Request, user: Annotated[str | None, Depends(_session)] = None):
+    if user:
+        return RedirectResponse(url="/dashboard", status_code=302)
+    return templates.TemplateResponse(request, "login.html", {"error": ""})
+
+
+@router.post("/login")
+async def login_post(request: Request):
+    form = await request.form()
+    username = str(form.get("username", ""))
+    password = str(form.get("password", ""))
+    s = get_settings()
+    ok = (
+        _secrets.compare_digest(username.encode(), s.dashboard_username.encode())
+        and _secrets.compare_digest(password.encode(), s.dashboard_password.encode())
     )
-    ok_pass = secrets.compare_digest(
-        credentials.password.encode(), settings.dashboard_password.encode()
-    )
-    if not (ok_user and ok_pass):
-        raise HTTPException(
+    if not ok:
+        return templates.TemplateResponse(
+            request, "login.html",
+            {"error": "Credenciales incorrectas — verifica usuario y contraseña"},
             status_code=401,
-            detail="Credenciales incorrectas",
-            headers={"WWW-Authenticate": "Basic"},
         )
-    return credentials.username
+    token = _make_token(username)
+    resp = RedirectResponse(url="/dashboard", status_code=302)
+    resp.set_cookie(
+        _COOKIE, token,
+        max_age=_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+        secure=(s.environment == "production"),
+    )
+    return resp
+
+
+@router.get("/logout")
+async def logout():
+    resp = RedirectResponse(url="/login", status_code=302)
+    resp.delete_cookie(_COOKIE)
+    return resp
 
 
 # ── Data queries ──────────────────────────────────────────────────────────────────
 
 async def _get_global_metrics(db: AsyncSession) -> dict:
-    """Totales de gasto, ingresos y ROAS promedio (últimos 30 días) + campañas activas."""
     cutoff = datetime.now(timezone.utc).date() - timedelta(days=30)
     result = await db.execute(
         select(
@@ -64,7 +133,6 @@ async def _get_global_metrics(db: AsyncSession) -> dict:
 
 
 async def _get_products_table(db: AsyncSession) -> list[dict]:
-    """Productos activos ordenados por score, con gasto y ROAS de los últimos 7 días."""
     result = await db.execute(
         select(Product)
         .where(Product.status == "active")
@@ -73,7 +141,6 @@ async def _get_products_table(db: AsyncSession) -> list[dict]:
     )
     products = result.scalars().all()
     cutoff_7d = datetime.now(timezone.utc).date() - timedelta(days=7)
-
     rows = []
     for p in products:
         camp_result = await db.execute(
@@ -82,7 +149,6 @@ async def _get_products_table(db: AsyncSession) -> list[dict]:
             )
         )
         platforms = [r[0] for r in camp_result.all()]
-
         metric_result = await db.execute(
             select(
                 func.coalesce(func.sum(Metric.spend_usd), 0).label("spend"),
@@ -113,11 +179,9 @@ _AGENT_INTERVALS: dict[str, timedelta] = {
 
 
 async def _get_agent_statuses(db: AsyncSession) -> dict:
-    """Estado semáforo (green/yellow/red) de cada agente basado en su último AgentLog."""
     agents = ["research", "dropi", "campaign", "analytics", "orchestrator"]
     statuses = {}
     now = datetime.now(timezone.utc)
-
     for agent in agents:
         last = await db.scalar(
             select(AgentLog)
@@ -128,13 +192,11 @@ async def _get_agent_statuses(db: AsyncSession) -> dict:
         if last is None:
             statuses[agent] = {"color": "red", "label": "Sin datos", "last_run": None}
             continue
-
         last_run = last.created_at
         if last_run.tzinfo is None:
             last_run = last_run.replace(tzinfo=timezone.utc)
         age = now - last_run
         interval = _AGENT_INTERVALS.get(agent, timedelta(hours=26))
-
         if last.status == "failure":
             color, label = "red", "Error"
         elif last.status in ("success", "partial") and age < interval:
@@ -143,7 +205,6 @@ async def _get_agent_statuses(db: AsyncSession) -> dict:
             color, label = "yellow", "Reintentando"
         else:
             color, label = "yellow", "Retrasado"
-
         statuses[agent] = {
             "color": color,
             "label": label,
@@ -153,7 +214,6 @@ async def _get_agent_statuses(db: AsyncSession) -> dict:
 
 
 async def _get_orchestrator_log(db: AsyncSession, limit: int = 50) -> list[dict]:
-    """Últimos N ciclos del orquestador registrados en AgentLog."""
     result = await db.execute(
         select(AgentLog)
         .where(AgentLog.agent == "orchestrator")
@@ -162,17 +222,16 @@ async def _get_orchestrator_log(db: AsyncSession, limit: int = 50) -> list[dict]
     )
     return [
         {
-            "id": str(entry.id),
-            "status": entry.status,
-            "created_at": entry.created_at.strftime("%Y-%m-%d %H:%M"),
-            "meta": entry.meta or {},
+            "id": str(e.id),
+            "status": e.status,
+            "created_at": e.created_at.strftime("%Y-%m-%d %H:%M"),
+            "meta": e.meta or {},
         }
-        for entry in result.scalars().all()
+        for e in result.scalars().all()
     ]
 
 
 async def _get_chart_data(db: AsyncSession, days: int = 7) -> dict:
-    """Datos diarios de gasto e ingresos para Chart.js (últimos N días)."""
     cutoff = datetime.now(timezone.utc).date() - timedelta(days=days)
     result = await db.execute(
         select(
@@ -192,15 +251,25 @@ async def _get_chart_data(db: AsyncSession, days: int = 7) -> dict:
     }
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────────
+# ── Dashboard + API endpoints ─────────────────────────────────────────────────────
 
-@router.get("/logout")
-async def logout():
-    """Cierra sesión HTTP Basic forzando un 401 que borra las credenciales del navegador."""
-    raise HTTPException(
-        status_code=401,
-        detail="Sesión cerrada",
-        headers={"WWW-Authenticate": "Basic"},
+@router.get("/dashboard")
+async def dashboard(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[str | None, Depends(_session)] = None,
+):
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    return templates.TemplateResponse(
+        request, "dashboard.html",
+        {
+            "global_metrics": await _get_global_metrics(db),
+            "products": await _get_products_table(db),
+            "agents": await _get_agent_statuses(db),
+            "orc_log": await _get_orchestrator_log(db),
+            "chart_data": await _get_chart_data(db, days=7),
+        },
     )
 
 
@@ -208,9 +277,8 @@ async def logout():
 async def agent_detail_api(
     agent_name: str,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[str, Depends(_check_auth)],
+    _: Annotated[str, Depends(_auth)],
 ):
-    """Últimas 20 ejecuciones de un agente específico."""
     result = await db.execute(
         select(AgentLog)
         .where(AgentLog.agent == agent_name)
@@ -231,9 +299,8 @@ async def agent_detail_api(
 @router.get("/dashboard/api/metrics")
 async def metrics_detail_api(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[str, Depends(_check_auth)],
+    _: Annotated[str, Depends(_auth)],
 ):
-    """Desglose diario de gasto, ingresos y ROAS (últimos 14 días)."""
     cutoff = datetime.now(timezone.utc).date() - timedelta(days=14)
     result = await db.execute(
         select(
@@ -260,9 +327,8 @@ async def metrics_detail_api(
 @router.get("/dashboard/api/campaigns")
 async def campaigns_api(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[str, Depends(_check_auth)],
+    _: Annotated[str, Depends(_auth)],
 ):
-    """Campañas activas con producto asociado y presupuesto."""
     from app.models import Product as ProductModel
     result = await db.execute(
         select(Campaign, ProductModel.name.label("product_name"))
@@ -281,30 +347,3 @@ async def campaigns_api(
         }
         for r in result.all()
     ]
-
-
-
-@router.get("/dashboard")
-async def dashboard(
-    request: Request,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    _username: Annotated[str, Depends(_check_auth)],
-):
-    """Dashboard principal — renderiza HTML con todos los widgets de monitoreo."""
-    global_metrics = await _get_global_metrics(db)
-    products = await _get_products_table(db)
-    agents = await _get_agent_statuses(db)
-    orc_log = await _get_orchestrator_log(db)
-    chart_data = await _get_chart_data(db, days=7)
-
-    return templates.TemplateResponse(
-        request,
-        "dashboard.html",
-        {
-            "global_metrics": global_metrics,
-            "products": products,
-            "agents": agents,
-            "orc_log": orc_log,
-            "chart_data": chart_data,
-        },
-    )

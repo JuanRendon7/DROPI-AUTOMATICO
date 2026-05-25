@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DROPI — Iniciar sesión</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:     #03090f;
+      --card:   rgba(4, 16, 34, 0.88);
+      --border: rgba(0, 200, 255, 0.14);
+      --bh:     rgba(0, 200, 255, 0.5);
+      --cyan:   #00c8ff;
+      --green:  #00ff88;
+      --violet: #a855f7;
+      --red:    #ff3d5a;
+      --text:   #dde6f0;
+      --text2:  #8fa0b8;
+      --text3:  #607a96;
+      --font:   'Space Grotesk', system-ui, sans-serif;
+      --mono:   'JetBrains Mono', monospace;
+    }
+
+    html, body {
+      height: 100%; background: var(--bg); color: var(--text);
+      font-family: var(--font); font-size: 14px; overflow: hidden;
+    }
+
+    /* ── Backgrounds ─────────────────────────── */
+    #bg-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    #bg-icons  { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+
+    @keyframes fly-r {
+      0%   { transform: translateX(-80px) translateY(0px); }
+      50%  { transform: translateX(50vw)  translateY(-40px); }
+      100% { transform: translateX(calc(100vw + 80px)) translateY(0px); }
+    }
+    @keyframes fly-l {
+      0%   { transform: translateX(calc(100vw + 80px)) translateY(0px); }
+      50%  { transform: translateX(50vw)  translateY(40px); }
+      100% { transform: translateX(-80px) translateY(0px); }
+    }
+    @keyframes fly-d {
+      0%   { transform: translateX(-80px) translateY(-30px); }
+      100% { transform: translateX(calc(100vw + 80px)) translateY(60px); }
+    }
+
+    /* ── Center layout ───────────────────────── */
+    #page {
+      position: relative; z-index: 2;
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 24px;
+    }
+
+    /* ── Card ────────────────────────────────── */
+    .login-card {
+      width: 100%; max-width: 400px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 40px 36px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 0 80px rgba(0,200,255,.07), 0 32px 64px rgba(0,0,0,.5);
+      animation: card-in .3s ease;
+    }
+    @keyframes card-in {
+      from { opacity: 0; transform: translateY(20px) scale(.97); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    /* ── Logo ────────────────────────────────── */
+    .logo-wrap { display: flex; flex-direction: column; align-items: center; margin-bottom: 32px; gap: 12px; }
+
+    .logo-box {
+      width: 52px; height: 52px; border-radius: 16px;
+      background: linear-gradient(135deg, #006e9e 0%, #4a12a0 100%);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 28px rgba(0,200,255,.3), inset 0 1px 0 rgba(255,255,255,.12);
+    }
+    .logo-box svg { width: 26px; height: 26px; }
+
+    .logo-title {
+      font-size: 20px; font-weight: 700; letter-spacing: -.4px;
+      background: linear-gradient(90deg, var(--cyan), var(--violet));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .logo-sub {
+      font-size: 10px; color: var(--text3); font-family: var(--mono);
+      letter-spacing: 2px; text-transform: uppercase; text-align: center;
+    }
+
+    /* ── Form ────────────────────────────────── */
+    .field { margin-bottom: 16px; }
+    .field label {
+      display: block; font-size: 11px; font-weight: 500;
+      color: var(--text3); letter-spacing: 1px; text-transform: uppercase;
+      font-family: var(--mono); margin-bottom: 8px;
+    }
+    .field input {
+      width: 100%; padding: 12px 16px;
+      background: rgba(0,200,255,.05);
+      border: 1px solid var(--border);
+      border-radius: 12px; color: var(--text);
+      font-family: var(--font); font-size: 14px;
+      outline: none; transition: border-color .2s, box-shadow .2s;
+    }
+    .field input::placeholder { color: var(--text3); }
+    .field input:focus {
+      border-color: rgba(0,200,255,.5);
+      box-shadow: 0 0 0 3px rgba(0,200,255,.08);
+    }
+
+    /* ── Error ───────────────────────────────── */
+    .error-msg {
+      display: flex; align-items: center; gap: 8px;
+      padding: 11px 14px; border-radius: 10px; margin-bottom: 18px;
+      background: rgba(255,61,90,.08); border: 1px solid rgba(255,61,90,.25);
+      color: #ff7a8a; font-size: 12px; font-family: var(--mono);
+    }
+
+    /* ── Button ──────────────────────────────── */
+    .login-btn {
+      width: 100%; padding: 14px;
+      background: linear-gradient(135deg, #0078a8 0%, #5b12a8 100%);
+      border: none; border-radius: 12px; color: white;
+      font-family: var(--font); font-size: 14px; font-weight: 600;
+      cursor: pointer; letter-spacing: .3px;
+      transition: opacity .2s, transform .15s, box-shadow .2s;
+      box-shadow: 0 4px 20px rgba(0,200,255,.2);
+    }
+    .login-btn:hover { opacity: .9; transform: translateY(-1px); box-shadow: 0 6px 28px rgba(0,200,255,.3); }
+    .login-btn:active { transform: translateY(0); }
+
+    /* ── Footer label ────────────────────────── */
+    .card-footer {
+      margin-top: 28px; padding-top: 20px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-family: var(--mono); font-size: 9.5px; color: var(--text3);
+      letter-spacing: 1px;
+    }
+
+    ::-webkit-scrollbar { display: none; }
+  </style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+<div id="bg-icons"></div>
+
+<div id="page">
+  <div class="login-card">
+
+    <div class="logo-wrap">
+      <div class="logo-box">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="logo-title">DROPI SALES MACHINE</div>
+        <div class="logo-sub">Mission Control · Acceso seguro</div>
+      </div>
+    </div>
+
+    {% if error %}
+    <div class="error-msg">⚠ {{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/login">
+      <div class="field">
+        <label for="username">Usuario</label>
+        <input id="username" name="username" type="text"
+               placeholder="admin" autocomplete="username" autofocus required>
+      </div>
+      <div class="field" style="margin-bottom:24px">
+        <label for="password">Contraseña</label>
+        <input id="password" name="password" type="password"
+               placeholder="••••••••" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="login-btn">Iniciar sesión →</button>
+    </form>
+
+    <div class="card-footer">
+      DROPI AUTONOMOUS SALES MACHINE &nbsp;·&nbsp; v0.1.0
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ── Particle network ─── */
+(function(){
+  var cv=document.getElementById('bg-canvas'),cx=cv.getContext('2d'),N=[],C=55,MD=140;
+  function resize(){cv.width=window.innerWidth;cv.height=window.innerHeight;}
+  function mk(){return{x:Math.random()*cv.width,y:Math.random()*cv.height,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,r:Math.random()*1.3+.4,hot:Math.random()<.12,ph:Math.random()*Math.PI*2};}
+  function frame(){
+    cx.clearRect(0,0,cv.width,cv.height);
+    for(var a=0;a<N.length;a++)for(var b=a+1;b<N.length;b++){var dx=N[a].x-N[b].x,dy=N[a].y-N[b].y,d=Math.sqrt(dx*dx+dy*dy);if(d<MD){cx.beginPath();cx.moveTo(N[a].x,N[a].y);cx.lineTo(N[b].x,N[b].y);cx.strokeStyle='rgba(0,190,230,'+((1-d/MD)*.14)+')';cx.lineWidth=.5;cx.stroke();}}
+    for(var i=0;i<N.length;i++){var n=N[i];n.ph+=.035;var al=n.hot?(.4+.4*Math.sin(n.ph)):.45,co=n.hot?'rgba(0,255,136,'+al+')':'rgba(0,190,230,'+al+')',rr=n.hot?n.r*(1.2+.2*Math.sin(n.ph)):n.r;cx.beginPath();cx.arc(n.x,n.y,rr,0,Math.PI*2);cx.fillStyle=co;cx.fill();n.x+=n.vx;n.y+=n.vy;if(n.x<0||n.x>cv.width)n.vx*=-1;if(n.y<0||n.y>cv.height)n.vy*=-1;}
+    requestAnimationFrame(frame);
+  }
+  resize();window.addEventListener('resize',function(){resize();N=[];for(var i=0;i<C;i++)N.push(mk());});
+  for(var i=0;i<C;i++)N.push(mk());frame();
+})();
+
+/* ── Commerce floating icons ─── */
+(function(){
+  var container=document.getElementById('bg-icons');
+  var pool=['✈','✈','🚢','🚚','🚚','📦','📦','🛵','✈','🚀'];
+  var anims=['fly-r','fly-r','fly-r','fly-l','fly-l','fly-d'];
+  for(var i=0;i<18;i++){
+    var el=document.createElement('span');
+    var ico=pool[Math.floor(Math.random()*pool.length)];
+    var anim=anims[Math.floor(Math.random()*anims.length)];
+    var size=14+Math.random()*22;
+    var top=Math.random()*92;
+    var dur=16+Math.random()*28;
+    var delay=-Math.random()*dur;
+    el.textContent=ico;
+    el.style.cssText='position:absolute;font-size:'+size+'px;top:'+top+'%;left:0;'
+      +'opacity:0.07;filter:grayscale(1) brightness(1.4);'
+      +'animation:'+anim+' '+dur+'s linear '+delay+'s infinite;';
+    container.appendChild(el);
+  }
+})();
+</script>
+
+</body>
+</html>

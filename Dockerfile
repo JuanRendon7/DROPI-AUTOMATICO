@@ -1,8 +1,8 @@
 FROM python:3.11-slim
 
 # curl para healthcheck
-RUN apt-get update && apt-get install -y --no-install-recommends curl; \
-    rm -rf /var/lib/apt/lists/*
+RUN (apt-get update && apt-get install -y --no-install-recommends curl) || true; \
+    rm -rf /var/lib/apt/lists/* 2>/dev/null || true
 
 # Usuario no-root
 RUN groupadd --gid 1001 appgroup && \
@@ -31,6 +31,6 @@ USER appuser
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
+    CMD python -c "import urllib.request,os; urllib.request.urlopen('http://localhost:'+os.environ.get('PORT','8000')+'/health')" || exit 1
 
 CMD ["sh", "start.sh"]

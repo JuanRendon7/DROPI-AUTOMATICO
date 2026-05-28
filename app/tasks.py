@@ -28,7 +28,7 @@ async def _notify(message: str) -> None:
 
 
 def _is_last_retry(task_self) -> bool:
-    return task_self.request.retries >= task_self.max_retries - 1
+    return task_self.request.retries >= task_self.max_retries
 
 
 # ---------------------------------------------------------------------------

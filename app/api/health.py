@@ -18,6 +18,20 @@ async def health_check():
     return {"status": "ok", "version": settings.app_version}
 
 
+@router.post("/api/v1/notify/test", tags=["health"])
+async def test_telegram():
+    """Envía un mensaje de prueba al bot de Telegram para verificar la configuración."""
+    from agents.analytics.notifier import TelegramNotifier
+    settings = get_settings()
+    notifier = TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id)
+    ok = await notifier.send(
+        "🔔 *Prueba de notificación* — Telegram está correctamente configurado ✅"
+    )
+    if ok:
+        return {"status": "sent", "chat_id": settings.telegram_chat_id}
+    return {"status": "failed — bot token o chat_id no configurados o Telegram rechazó el mensaje"}
+
+
 @router.get("/api/v1/status", tags=["health"])
 async def detailed_status():
     services: dict[str, str] = {}

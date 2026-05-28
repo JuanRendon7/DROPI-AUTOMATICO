@@ -1,10 +1,39 @@
 import asyncio
+from datetime import datetime, timezone
 
 from app.celery_app import celery_app
 from app.logger import get_logger
 
 log = get_logger("tasks")
 
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+async def _notify_alert(title: str, body: str) -> None:
+    from agents.analytics.notifier import TelegramNotifier
+    from app.config import get_settings
+    s = get_settings()
+    notifier = TelegramNotifier(s.telegram_bot_token, s.telegram_chat_id)
+    await notifier.send_alert(title, body)
+
+
+async def _notify(message: str) -> None:
+    from agents.analytics.notifier import TelegramNotifier
+    from app.config import get_settings
+    s = get_settings()
+    notifier = TelegramNotifier(s.telegram_bot_token, s.telegram_chat_id)
+    await notifier.send(message)
+
+
+def _is_last_retry(task_self) -> bool:
+    return task_self.request.retries >= task_self.max_retries - 1
+
+
+# ---------------------------------------------------------------------------
+# Tareas Celery
+# ---------------------------------------------------------------------------
 
 @celery_app.task(name="app.tasks.run_analytics_collect", bind=True, max_retries=2)
 def run_analytics_collect(self):
@@ -13,6 +42,8 @@ def run_analytics_collect(self):
         asyncio.run(_run_analytics_collect_async())
     except Exception as exc:
         log.error("run_analytics_collect falló", error=str(exc))
+        if _is_last_retry(self):
+            asyncio.run(_notify_alert("Analytics Collect falló", str(exc)[:300]))
         raise self.retry(exc=exc, countdown=300)
 
 
@@ -23,6 +54,8 @@ def run_analytics_optimize(self):
         asyncio.run(_run_analytics_optimize_async())
     except Exception as exc:
         log.error("run_analytics_optimize falló", error=str(exc))
+        if _is_last_retry(self):
+            asyncio.run(_notify_alert("Analytics Optimize falló", str(exc)[:300]))
         raise self.retry(exc=exc, countdown=300)
 
 
@@ -33,6 +66,8 @@ def run_campaign_creation(self):
         asyncio.run(_run_campaign_async())
     except Exception as exc:
         log.error("run_campaign_creation falló", error=str(exc))
+        if _is_last_retry(self):
+            asyncio.run(_notify_alert("Campaign Creation falló", str(exc)[:300]))
         raise self.retry(exc=exc, countdown=300)
 
 
@@ -43,7 +78,9 @@ def run_daily_research(self):
         asyncio.run(_run_research_async())
     except Exception as exc:
         log.error("run_daily_research falló", error=str(exc))
-        raise self.retry(exc=exc, countdown=300)  # reintentar en 5 min
+        if _is_last_retry(self):
+            asyncio.run(_notify_alert("Research Agent falló", str(exc)[:300]))
+        raise self.retry(exc=exc, countdown=300)
 
 
 @celery_app.task(name="app.tasks.run_dropi_sync", bind=True, max_retries=3)
@@ -53,8 +90,29 @@ def run_dropi_sync(self):
         asyncio.run(_run_dropi_sync_async())
     except Exception as exc:
         log.error("run_dropi_sync falló", error=str(exc))
+        if _is_last_retry(self):
+            asyncio.run(_notify_alert("Dropi Sync falló", str(exc)[:300]))
         raise self.retry(exc=exc, countdown=120)
 
+
+@celery_app.task(name="app.tasks.run_orchestrator_cycle", bind=True, max_retries=1)
+def run_orchestrator_cycle(self):
+    """Ejecuta el ciclo completo de orquestación Research→Dropi→Campaign→Analytics.
+    Programado: 06:30 COT diario (después del Research standalone de 06:00)."""
+    try:
+        asyncio.run(_run_orchestrator_async())
+    except Exception as exc:
+        log.error("run_orchestrator_cycle falló", error=str(exc))
+        asyncio.run(_notify_alert(
+            "Ciclo diario falló",
+            f"El ciclo de orquestacion de las 6:30 AM termino con error:\n`{str(exc)[:300]}`",
+        ))
+        raise self.retry(exc=exc, countdown=600)
+
+
+# ---------------------------------------------------------------------------
+# Implementaciones async
+# ---------------------------------------------------------------------------
 
 async def _run_analytics_collect_async() -> None:
     from agents.analytics.agent import AnalyticsAgent
@@ -133,17 +191,6 @@ async def _run_campaign_async() -> None:
         )
 
 
-@celery_app.task(name="app.tasks.run_orchestrator_cycle", bind=True, max_retries=1)
-def run_orchestrator_cycle(self):
-    """Ejecuta el ciclo completo de orquestación Research→Dropi→Campaign→Analytics.
-    Programado: 06:30 COT diario (después del Research standalone de 06:00)."""
-    try:
-        asyncio.run(_run_orchestrator_async())
-    except Exception as exc:
-        log.error("run_orchestrator_cycle falló", error=str(exc))
-        raise self.retry(exc=exc, countdown=600)  # reintento en 10 min
-
-
 async def _run_orchestrator_async() -> None:
     from agents.orchestrator.agent import OrchestratorAgent
     from app.config import get_settings
@@ -151,13 +198,41 @@ async def _run_orchestrator_async() -> None:
     settings = get_settings()
     agent = OrchestratorAgent(settings)
     final_state = await agent.run_cycle(trigger_source="scheduled")
+
+    errors = final_state.get("errors", [])
+    research = final_state.get("research_status", "?")
+    campaign = final_state.get("campaign_status", "?")
+    platforms = final_state.get("campaign_platforms", [])
+    product_name = final_state.get("research_top_product_name") or "—"
+
+    now_col = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    if errors:
+        lines = [
+            f"⚠️ *Ciclo diario completado con errores* — {now_col}",
+            f"Research: `{research}` | Producto: {product_name}",
+            f"Campaign: `{campaign}` | Plataformas: {', '.join(platforms) or 'ninguna'}",
+            "",
+            "*Errores:*",
+        ] + [f"• {e[:120]}" for e in errors]
+    else:
+        lines = [
+            f"✅ *Ciclo diario completado* — {now_col}",
+            f"Research: `{research}` | Producto: {product_name}",
+            f"Campaign: `{campaign}` | Plataformas: {', '.join(platforms) or 'ninguna'}",
+        ]
+
+    from agents.analytics.notifier import TelegramNotifier
+    notifier = TelegramNotifier(settings.telegram_bot_token, settings.telegram_chat_id)
+    await notifier.send("\n".join(lines))
+
     log.info(
         "Orchestrator cycle completado via Celery",
         run_id=final_state.get("run_id"),
-        research=final_state.get("research_status"),
-        campaign=final_state.get("campaign_status"),
-        campaign_platforms=final_state.get("campaign_platforms", []),
-        errors=len(final_state.get("errors", [])),
+        research=research,
+        campaign=campaign,
+        campaign_platforms=platforms,
+        errors=len(errors),
     )
 
 
